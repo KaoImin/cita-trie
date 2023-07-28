@@ -57,7 +57,7 @@ where
     root: Node,
     root_hash: Vec<u8>,
 
-    db: Arc<D>,
+    db: D,
     hasher: Arc<H>,
     backup_db: Option<Arc<D>>,
 
@@ -212,7 +212,7 @@ where
             nodes,
         }
     }
-    pub fn new(db: Arc<D>, hasher: Arc<H>) -> Self {
+    pub fn new(db: D, hasher: Arc<H>) -> Self {
         Self {
             root: Node::Empty,
             root_hash: hasher.digest(rlp::NULL_RLP.as_ref()),
@@ -227,7 +227,7 @@ where
         }
     }
 
-    pub fn from(db: Arc<D>, hasher: Arc<H>, root: &[u8]) -> TrieResult<Self> {
+    pub fn from(db: D, hasher: Arc<H>, root: &[u8]) -> TrieResult<Self> {
         match db.get(root).map_err(|e| TrieError::DB(e.to_string()))? {
             Some(data) => {
                 let mut trie = Self {
@@ -252,7 +252,7 @@ where
 
     // extract specified height statedb in full node mode
     pub fn extract_backup(
-        db: Arc<D>,
+        db: D,
         backup_db: Option<Arc<D>>,
         hasher: Arc<H>,
         root_hash: &[u8],
@@ -369,7 +369,7 @@ where
         key: &[u8],
         proof: Vec<Vec<u8>>,
     ) -> TrieResult<Option<Vec<u8>>> {
-        let memdb = Arc::new(MemoryDB::new(true));
+        let memdb = MemoryDB::new(true);
         for node_encoded in proof.into_iter() {
             let hash = self.hasher.digest(&node_encoded);
 
@@ -929,14 +929,14 @@ mod tests {
 
     #[test]
     fn test_trie_insert() {
-        let memdb = Arc::new(MemoryDB::new(true));
+        let memdb = MemoryDB::new(true);
         let mut trie = PatriciaTrie::new(memdb, Arc::new(HasherKeccak::new()));
         trie.insert(b"test".to_vec(), b"test".to_vec()).unwrap();
     }
 
     #[test]
     fn test_trie_get() {
-        let memdb = Arc::new(MemoryDB::new(true));
+        let memdb = MemoryDB::new(true);
         let mut trie = PatriciaTrie::new(memdb, Arc::new(HasherKeccak::new()));
         trie.insert(b"test".to_vec(), b"test".to_vec()).unwrap();
         let v = trie.get(b"test").unwrap();
@@ -946,7 +946,7 @@ mod tests {
 
     #[test]
     fn test_trie_random_insert() {
-        let memdb = Arc::new(MemoryDB::new(true));
+        let memdb = MemoryDB::new(true);
         let mut trie = PatriciaTrie::new(memdb, Arc::new(HasherKeccak::new()));
 
         for _ in 0..1000 {
@@ -961,7 +961,7 @@ mod tests {
 
     #[test]
     fn test_trie_contains() {
-        let memdb = Arc::new(MemoryDB::new(true));
+        let memdb = MemoryDB::new(true);
         let mut trie = PatriciaTrie::new(memdb, Arc::new(HasherKeccak::new()));
         trie.insert(b"test".to_vec(), b"test".to_vec()).unwrap();
         assert!(trie.contains(b"test").unwrap());
@@ -970,7 +970,7 @@ mod tests {
 
     #[test]
     fn test_trie_remove() {
-        let memdb = Arc::new(MemoryDB::new(true));
+        let memdb = MemoryDB::new(true);
         let mut trie = PatriciaTrie::new(memdb, Arc::new(HasherKeccak::new()));
         trie.insert(b"test".to_vec(), b"test".to_vec()).unwrap();
         let removed = trie.remove(b"test").unwrap();
@@ -979,7 +979,7 @@ mod tests {
 
     #[test]
     fn test_trie_random_remove() {
-        let memdb = Arc::new(MemoryDB::new(true));
+        let memdb = MemoryDB::new(true);
         let mut trie = PatriciaTrie::new(memdb, Arc::new(HasherKeccak::new()));
 
         for _ in 0..1000 {
@@ -996,7 +996,7 @@ mod tests {
     fn test_trie_from_root() {
         let memdb = Arc::new(MemoryDB::new(true));
         let root = {
-            let mut trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::new(HasherKeccak::new()));
+            let mut trie = PatriciaTrie::new(memdb.clone(), Arc::new(HasherKeccak::new()));
             trie.insert(b"test".to_vec(), b"test".to_vec()).unwrap();
             trie.insert(b"test1".to_vec(), b"test".to_vec()).unwrap();
             trie.insert(b"test2".to_vec(), b"test".to_vec()).unwrap();
@@ -1006,8 +1006,7 @@ mod tests {
             trie.root().unwrap()
         };
 
-        let mut trie =
-            PatriciaTrie::from(Arc::clone(&memdb), Arc::new(HasherKeccak::new()), &root).unwrap();
+        let mut trie = PatriciaTrie::from(memdb, Arc::new(HasherKeccak::new()), &root).unwrap();
         let v1 = trie.get(b"test33").unwrap();
         assert_eq!(Some(b"test".to_vec()), v1);
         let v2 = trie.get(b"test44").unwrap();
@@ -1020,7 +1019,7 @@ mod tests {
     fn test_trie_from_root_and_insert() {
         let memdb = Arc::new(MemoryDB::new(true));
         let root = {
-            let mut trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::new(HasherKeccak::new()));
+            let mut trie = PatriciaTrie::new(memdb.clone(), Arc::new(HasherKeccak::new()));
             trie.insert(b"test".to_vec(), b"test".to_vec()).unwrap();
             trie.insert(b"test1".to_vec(), b"test".to_vec()).unwrap();
             trie.insert(b"test2".to_vec(), b"test".to_vec()).unwrap();
@@ -1030,8 +1029,7 @@ mod tests {
             trie.commit().unwrap()
         };
 
-        let mut trie =
-            PatriciaTrie::from(Arc::clone(&memdb), Arc::new(HasherKeccak::new()), &root).unwrap();
+        let mut trie = PatriciaTrie::from(memdb, Arc::new(HasherKeccak::new()), &root).unwrap();
         trie.insert(b"test55".to_vec(), b"test55".to_vec()).unwrap();
         trie.commit().unwrap();
         let v = trie.get(b"test55").unwrap();
@@ -1042,7 +1040,7 @@ mod tests {
     fn test_trie_from_root_and_delete() {
         let memdb = Arc::new(MemoryDB::new(true));
         let root = {
-            let mut trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::new(HasherKeccak::new()));
+            let mut trie = PatriciaTrie::new(memdb.clone(), Arc::new(HasherKeccak::new()));
             trie.insert(b"test".to_vec(), b"test".to_vec()).unwrap();
             trie.insert(b"test1".to_vec(), b"test".to_vec()).unwrap();
             trie.insert(b"test2".to_vec(), b"test".to_vec()).unwrap();
@@ -1052,8 +1050,7 @@ mod tests {
             trie.commit().unwrap()
         };
 
-        let mut trie =
-            PatriciaTrie::from(Arc::clone(&memdb), Arc::new(HasherKeccak::new()), &root).unwrap();
+        let mut trie = PatriciaTrie::from(memdb, Arc::new(HasherKeccak::new()), &root).unwrap();
         let removed = trie.remove(b"test44").unwrap();
         assert!(removed);
         let removed = trie.remove(b"test33").unwrap();
@@ -1069,7 +1066,7 @@ mod tests {
         let v = ethereum_types::H256::from_low_u64_le(0x1234);
 
         let root1 = {
-            let memdb = Arc::new(MemoryDB::new(true));
+            let memdb = MemoryDB::new(true);
             let mut trie = PatriciaTrie::new(memdb, Arc::new(HasherKeccak::new()));
             trie.insert(k0.as_bytes().to_vec(), v.as_bytes().to_vec())
                 .unwrap();
@@ -1077,7 +1074,7 @@ mod tests {
         };
 
         let root2 = {
-            let memdb = Arc::new(MemoryDB::new(true));
+            let memdb = MemoryDB::new(true);
             let mut trie = PatriciaTrie::new(memdb, Arc::new(HasherKeccak::new()));
             trie.insert(k0.as_bytes().to_vec(), v.as_bytes().to_vec())
                 .unwrap();
@@ -1100,8 +1097,7 @@ mod tests {
             trie1.root().unwrap();
             let root = trie1.root().unwrap();
             let mut trie2 =
-                PatriciaTrie::from(Arc::clone(&memdb), Arc::new(HasherKeccak::new()), &root)
-                    .unwrap();
+                PatriciaTrie::from(memdb, Arc::new(HasherKeccak::new()), &root).unwrap();
             trie2.remove(k1.as_bytes()).unwrap();
             trie2.root().unwrap()
         };
@@ -1112,7 +1108,7 @@ mod tests {
 
     #[test]
     fn test_delete_stale_keys_with_random_insert_and_delete() {
-        let memdb = Arc::new(MemoryDB::new(true));
+        let memdb = MemoryDB::new(true);
         let mut trie = PatriciaTrie::new(memdb, Arc::new(HasherKeccak::new()));
 
         let mut rng = rand::thread_rng();
@@ -1141,7 +1137,7 @@ mod tests {
 
     #[test]
     fn insert_full_branch() {
-        let memdb = Arc::new(MemoryDB::new(true));
+        let memdb = MemoryDB::new(true);
         let mut trie = PatriciaTrie::new(memdb, Arc::new(HasherKeccak::new()));
 
         trie.insert(b"test".to_vec(), b"test".to_vec()).unwrap();

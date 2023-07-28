@@ -45,6 +45,46 @@ pub trait DB: Send + Sync {
     fn is_empty(&self) -> Result<bool, String>;
 }
 
+impl<T: DB> DB for Arc<T> {
+    fn contains(&self, key: &[u8]) -> Result<bool, String> {
+        self.as_ref().contains(key)
+    }
+
+    fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, String> {
+        self.as_ref().get(key)
+    }
+
+    fn insert(&self, key: Vec<u8>, value: Vec<u8>) -> Result<(), String> {
+        self.as_ref().insert(key, value)
+    }
+
+    fn remove(&self, key: &[u8]) -> Result<(), String> {
+        self.as_ref().remove(key)
+    }
+
+    fn insert_batch(&self, keys: Vec<Vec<u8>>, values: Vec<Vec<u8>>) -> Result<(), String> {
+        self.as_ref().insert_batch(keys, values)
+    }
+
+    fn remove_batch(&self, keys: &[Vec<u8>]) -> Result<(), String> {
+        self.as_ref().remove_batch(keys)
+    }
+
+    fn flush(&self) -> Result<(), String> {
+        self.as_ref().flush()
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> Result<usize, String> {
+        self.as_ref().len()
+    }
+
+    #[cfg(test)]
+    fn is_empty(&self) -> Result<bool, String> {
+        self.as_ref().is_empty()
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct MemoryDB {
     // If "light" is true, the data is deleted from the database at the time of submission.
